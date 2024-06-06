@@ -2,7 +2,7 @@ import numpy as np
 import math
 
 def dist(x, y, bigM):
-    dist_grid = np.empty([len(x), len(y)])
+    dist_grid = np.empty([len(x), len(y)], dtype='int')
     for i in range(len(x)):
         for j in range(len(y)):
             if i == j:

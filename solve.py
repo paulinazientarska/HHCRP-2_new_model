@@ -1,8 +1,4 @@
 import pandas as pd
-import gurobipy as gb
-import numpy as np
-import matplotlib.pyplot as plt
-import math
 import timeit
 import distance
 import print_solution
@@ -11,9 +7,11 @@ import sub_constraints
 import decision_variables
 import objective_function
 
-number_of_patients = 30  # instance size (30/35/40/50/100)
+from ortools.sat.python import cp_model
 
-dir = r"data\{}P.xlsx" .format((number_of_patients))
+number_of_patients = 100  # instance size (30/35/40/50/100)
+
+dir = r"data/{}P.xlsx" .format((number_of_patients))
 df = pd.DataFrame(pd.read_excel(dir, 'patients'))  # patient data
 df_n = pd.DataFrame(pd.read_excel(dir, 'nurses'))  # nurse data
 df, df_n = df.fillna(0).astype('int'), df_n.fillna(0).astype('int')
@@ -38,25 +36,34 @@ grid = distance.dist(X, Y, bigM)  # get distance matrix
 
 start_time = timeit.default_timer()
 
-M = gb.Model("master_problem")  # initialize the model
+M = cp_model.CpModel()  # initialize the model
 
 d, x, y, z, s = {}, {}, {}, {}, {}  # initialize decision variables
 
-decision_variables.decisionVariables(M, gb, m, n, t, d, x, y, z, s)  # add decision variables to model
+decision_variables.decisionVariables(M, m, n, t, d, x, y, z, s)  # add decision variables to model
 
-objective_function.objectiveFunction(M, gb, d, n)  # add objective function to model
+objective_function.objectiveFunction(M, d, n)  # add objective function to model
 
-master_constraints.masterConstraints(M, d, x, y, m, n, t, q, q2, q3, Q, nN, f, gb)  # add master constraints to model
+master_constraints.masterConstraints(M, d, x, y, m, n, t, q, q2, q3, Q, nN, f)  # add master constraints to model
 
-sub_constraints.subConstraints(M, y, z, s, m, n, t, nN, et, lt, sd, grid, bigM, df_n, df, gb)  # add sub constraints to model
+sub_constraints.subConstraints(M, y, z, s, m, n, t, nN, et, lt, sd, grid, bigM, df_n)  # add sub constraints to model
 
-M.optimize()  # run optimizer
+solver = cp_model.CpSolver()
+status = solver.Solve(M)  # run optimizer
 
 end_time = timeit.default_timer() - start_time
 
+if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
+    print(f"Maximum of objective function: {solver.objective_value}\n")
+else:
+    print("No solution found.")
 # get attributes
-sol_d, sol_x, sol_y, sol_z, sol_s = M.getAttr('x', d), M.getAttr('x', x), M.getAttr('x', y), M.getAttr('x', z), M.getAttr('x', s)  # get decision variables
+sol_d = {k: solver.Value(v) for k, v in d.items()}
+sol_x = {k: solver.Value(v) for k, v in x.items()}
+sol_y = {k: solver.Value(v) for k, v in y.items()}
+sol_z = {k: solver.Value(v) for k, v in z.items()}
+sol_s = {k: solver.Value(v) for k, v in s.items()}
 
-print_solution.printSolution(M, sol_d, sol_x, sol_y, sol_z, sol_s, m, n, t, df, df_n, q, f)  # print solution
+print_solution.printSolution(solver, sol_d, sol_x, sol_y, sol_z, sol_s, m, n, t, df, df_n, q, f)  # print solution
 
 print('\ntotal time taken for optimization is:\n', end_time)
